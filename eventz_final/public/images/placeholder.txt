@@ -1,0 +1,4 @@
+Place default images here:
+- default-event.jpg (for events without banners)
+- default-avatar.png (for users without avatars)
+- logo.png (site logo)

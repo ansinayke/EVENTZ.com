@@ -266,4 +266,26 @@ class User {
         $sql = "UPDATE users SET last_login = NOW() WHERE id = :id";
         return $this->db->execute($sql, [':id' => $userId]);
     }
+    
+    /**
+     * Get total user count
+     */
+    public function getUserCount() {
+        $sql = "SELECT COUNT(*) as count FROM users";
+        $result = $this->db->fetchOne($sql);
+        return $result['count'] ?? 0;
+    }
+    
+    /**
+     * Get user count by role
+     */
+    public function getUserCountByRole($roleName) {
+        $sql = "SELECT COUNT(*) as count 
+                FROM users u 
+                INNER JOIN user_roles ur ON u.id = ur.user_id 
+                INNER JOIN roles r ON ur.role_id = r.id 
+                WHERE r.name = :role_name";
+        $result = $this->db->fetchOne($sql, [':role_name' => $roleName]);
+        return $result['count'] ?? 0;
+    }
 }

@@ -479,4 +479,13 @@ class Event {
         
         return $this->db->fetchAll($sql, $params);
     }
+    
+    /**
+     * Get total event count
+     */
+    public function getEventCount() {
+        $sql = "SELECT COUNT(*) as count FROM events WHERE status = 'approved'";
+        $result = $this->db->fetchOne($sql);
+        return $result['count'] ?? 0;
+    }
 }

@@ -4,7 +4,7 @@
         <div class="container">
             <div class="footer-content">
                 <div class="footer-section">
-                    <h3>EVENTZ</h3>
+                    <h3>EVENTZ.com</h3>
                     <p>Your premier event management platform</p>
                 </div>
                 <div class="footer-section">
@@ -26,7 +26,7 @@
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>&copy; <?= date('Y') ?> EVENTZ. All rights reserved.</p>
+                <p>&copy; <?= date('Y') ?> | EVENTZ.com | All rights reserved.</p>
             </div>
         </div>
     </footer>

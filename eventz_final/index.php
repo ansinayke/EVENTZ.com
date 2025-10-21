@@ -58,6 +58,22 @@ $router = new Router();
 
 // Public routes
 $router->get('/', function() {
+    // Get dynamic stats from database
+    require_once __DIR__ . '/app/core/Database.php';
+    require_once __DIR__ . '/app/models/User.php';
+    require_once __DIR__ . '/app/models/Event.php';
+    
+    $userModel = new User();
+    $eventModel = new Event();
+    
+    // Get stats
+    $stats = [
+        'total_events' => $eventModel->getEventCount(),
+        'total_members' => $userModel->getUserCount(),
+        'total_sponsors' => $userModel->getUserCountByRole('sponsor'),
+        'total_organizers' => $userModel->getUserCountByRole('organizer')
+    ];
+    
     require_once __DIR__ . '/app/views/welcome.php';
 });
 
@@ -66,6 +82,15 @@ $router->post('/login', 'AuthController@login');
 $router->get('/register', 'AuthController@showRegister');
 $router->post('/register', 'AuthController@register');
 $router->get('/logout', 'AuthController@logout');
+
+// Static pages
+$router->get('/about', function() {
+    require_once __DIR__ . '/app/views/about.php';
+});
+
+$router->get('/contact', function() {
+    require_once __DIR__ . '/app/views/contact.php';
+});
 
 // Participant routes
 $router->get('/participant/home', 'ParticipantController@home');

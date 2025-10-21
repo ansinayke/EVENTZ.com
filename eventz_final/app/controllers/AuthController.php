@@ -50,33 +50,42 @@ class AuthController extends Controller {
      * Handle login
      */
     public function login() {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            $this->redirect('/login');
-        }
-        
-        $email = $this->sanitize($this->post('email'));
-        $password = $this->post('password');
-        
-        if (empty($email) || empty($password)) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        $this->redirect('/login');
+        return;
+    }
+
+    $email = $this->sanitize($this->post('email'));
+    $password = $this->post('password');
+
+    if (empty($email) || empty($password)) {
+        if ($this->isAjax()) {
+            return $this->json(['success' => false, 'message' => 'Please fill in all fields'], 400);
+        } else {
             $_SESSION['error'] = 'Please fill in all fields';
-            $this->redirect('/login');
+            return $this->redirect('/login');
         }
-        
+    }
+
+    try {
         $user = $this->userModel->findByEmail($email);
-        
         if (!$user || !password_verify($password, $user['password_hash'])) {
-            $_SESSION['error'] = 'Invalid email or password';
-            $this->redirect('/login');
+            if ($this->isAjax()) {
+                return $this->json(['success' => false, 'message' => 'Invalid email or password'], 400);
+            } else {
+                $_SESSION['error'] = 'Invalid email or password';
+                return $this->redirect('/login');
+            }
         }
-        
-        // Set session variables
+
+        // SUCCESS — set session and roles
         session_regenerate_id(true);
         $_SESSION['user_id'] = $user['id'];
-        $_SESSION['user_name'] = $user['full_name'];
+        $_SESSION['user_name'] = $user['full_name'] ?? $user['name'] ?? '';
         $_SESSION['user_email'] = $user['email'];
-        $_SESSION['user_avatar'] = $user['avatar_url'];
-        
-        // Get user roles and choose a supported primary role (no supplier dashboard)
+        $_SESSION['user_avatar'] = $user['avatar_url'] ?? null;
+
+        // roles
         $roles = $this->userModel->getRoles($user['id']);
         $_SESSION['user_roles'] = $roles;
         $priority = ['admin', 'organizer', 'sponsor', 'participant'];
@@ -85,26 +94,37 @@ class AuthController extends Controller {
             if (in_array($r, $roles, true)) { $primaryRole = $r; break; }
         }
         $_SESSION['user_role'] = $primaryRole;
-        
-        // Update last login
+
+        // update last login
         $this->userModel->updateLastLogin($user['id']);
-        
-        // Redirect based on role
-        $role = $_SESSION['user_role'];
-        switch ($role) {
-            case 'admin':
-                $this->redirect('/admin/dashboard');
-                break;
-            case 'organizer':
-                $this->redirect('/organizer/dashboard');
-                break;
-            case 'sponsor':
-                $this->redirect('/sponsor/dashboard');
-                break;
-            default:
-                $this->redirect('/participant/home');
+
+        // Return response depending on AJAX or normal
+        $redirectUrl = '';
+        switch ($primaryRole) {
+            case 'admin': $redirectUrl = FULL_URL .'/admin/dashboard'; break;
+            case 'organizer': $redirectUrl = FULL_URL .'/organizer/dashboard'; break;
+            case 'sponsor': $redirectUrl = FULL_URL .'/sponsor/dashboard'; break;
+            case 'supplier': $redirectUrl = FULL_URL .'/supplier/dashboard'; break;
+            default: $redirectUrl = FULL_URL .'/participant/home';
+        }
+
+        if ($this->isAjax()) {
+            return $this->json(['success' => true, 'message' => 'Login successful', 'redirect' => $redirectUrl]);
+        } else {
+            return $this->redirect($redirectUrl);
+        }
+
+    } catch (Exception $e) {
+        error_log("Login error: " . $e->getMessage());
+        if ($this->isAjax()) {
+            return $this->json(['success' => false, 'message' => 'Login failed. Please try again.'], 500);
+        } else {
+            $_SESSION['error'] = 'Login failed. Please try again.';
+            return $this->redirect('/login');
         }
     }
+    }
+
     
     /**
      * Show registration form
@@ -200,12 +220,26 @@ class AuthController extends Controller {
         $userId = $this->userModel->create($userData);
         
         if ($userId) {
-            $_SESSION['success'] = 'Registration successful! Please login.';
-            $this->redirect('/login');
+        // If AJAX, return JSON
+        if ($this->isAjax()) {
+            return $this->json([
+                'success' => true,
+                'message' => 'Registration successful! Please login.',
+                'redirect' => '/login'
+            ]);
         } else {
-            $_SESSION['error'] = 'Registration failed. Please try again.';
-            $this->redirect('/register');
+            $_SESSION['success'] = 'Registration successful! Please login.';
+            return $this->redirect('/login');
         }
+        } else {
+            if ($this->isAjax()) {
+                return $this->json(['success' => false, 'message' => 'Registration failed. Please try again.'], 500);
+            } else {
+                $_SESSION['error'] = 'Registration failed. Please try again.';
+                return $this->redirect('/register');
+            }
+        }
+
     }
     
     /**

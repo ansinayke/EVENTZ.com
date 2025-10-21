@@ -10,6 +10,13 @@ class Controller {
     public function __construct() {
         $this->db = Database::getInstance();
     }
+
+    /* isAjax */
+    
+    protected function isAjax() {
+    return isset($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+           strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    }
     
     /**
      * Load a view file

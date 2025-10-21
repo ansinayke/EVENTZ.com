@@ -41,70 +41,96 @@ function initModals() {
     });
 }
 
-// Form handling
+// Form handling (robust)
 function initForms() {
     // Event action buttons
     initEventActions();
     
     // AJAX form submissions
     const ajaxForms = document.querySelectorAll('[data-ajax-form]');
-    
+    if (!ajaxForms || ajaxForms.length === 0) return;
+
     ajaxForms.forEach(form => {
-        form.addEventListener('submit', function(e) {
+        form.addEventListener('submit', async function(e) {
             e.preventDefault();
-            
-            const formData = new FormData(this);
-            const action = this.getAttribute('action');
-            const method = this.getAttribute('method') || 'POST';
-            
-            fetch(action, {
-                method: method,
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.text();
-            })
-            .then(text => {
+
+            // Get the submit button (first button[type="submit"] in form)
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn ? submitBtn.textContent : null;
+
+            // Basic action/method guards
+            const action = this.getAttribute('action') || window.location.href;
+            const method = (this.getAttribute('method') || 'POST').toUpperCase();
+
+            // Start loading state (only for the button inside this form)
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.classList.add('loading');
+                submitBtn.textContent = 'Loading...';
+            }
+
+            try {
+                const response = await fetch(action, {
+                    method: method,
+                    body: new FormData(this),
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                // get raw text (server may return HTML or JSON)
+                const text = await response.text();
+
+                // try parse JSON safely
+                let data = null;
                 try {
-                    const data = JSON.parse(text);
+                    data = text ? JSON.parse(text) : null;
+                } catch (err) {
+                    // not JSON — treat as non-JSON response
+                    console.error('Could not parse JSON from response:', err, text);
+                }
+
+                if (data && typeof data === 'object') {
+                    // server returned JSON
                     if (data.success) {
                         showAlert('success', data.message || 'Operation successful');
                         if (data.redirect) {
-                            setTimeout(() => {
-                                window.location.href = data.redirect;
-                            }, 1000);
+                            setTimeout(() => { window.location.href = data.redirect; }, 700);
                         } else {
-                            // Close modal and refresh if no redirect
                             const modal = this.closest('.modal');
-                            if (modal) {
-                                modal.classList.remove('active');
-                            }
-                            setTimeout(() => {
-                                window.location.reload();
-                            }, 1000);
+                            if (modal) modal.classList.remove('active');
+                            setTimeout(() => window.location.reload(), 700);
                         }
                     } else {
                         showAlert('error', data.message || 'Operation failed');
                     }
-                } catch (e) {
-                    console.error('JSON Parse Error:', e);
-                    console.error('Response text:', text);
-                    showAlert('error', 'Invalid response from server');
+                } else {
+                    // Non-JSON: if server responded with an HTML page it might be a non-AJAX redirect
+                    if (response.ok) {
+                        // Replace page or follow redirect behavior
+                        // If server returned a redirect HTML, just replace body:
+                        document.open();
+                        document.write(text);
+                        document.close();
+                    } else {
+                        showAlert('error', 'Server error: ' + response.status);
+                    }
                 }
-            })
-            .catch(error => {
+            } catch (error) {
+                console.error('AJAX submit error:', error);
                 showAlert('error', 'An error occurred');
-                console.error('Error:', error);
-            });
+            } finally {
+                // always restore button
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('loading');
+                    if (originalText !== null) submitBtn.textContent = originalText;
+                }
+            }
         });
     });
 }
+
 
 // Alert system
 function initAlerts() {
@@ -488,20 +514,17 @@ function initAnimations() {
 
 // Initialize loading states
 function initLoadingStates() {
-    // Add loading state to all buttons on click
-    document.querySelectorAll('button[type="submit"], .btn').forEach(button => {
+    // Add loading state only for non-form buttons (.btn) — leave submit buttons to form handler
+    document.querySelectorAll('.btn').forEach(button => {
+        // skip buttons that are plain submit controls inside forms (they should be handled by initForms)
+        if (button.matches('button[type="submit"], input[type="submit"]')) return;
+
         button.addEventListener('click', function(e) {
-            // Only add loading state for form submissions and AJAX calls
-            if (this.type === 'submit' || this.onclick) {
-                this.classList.add('loading');
-                this.disabled = true;
-                
-                // Remove loading state after 3 seconds as fallback
-                setTimeout(() => {
-                    this.classList.remove('loading');
-                    this.disabled = false;
-                }, 3000);
-            }
+            this.classList.add('loading');
+            // revert after short delay to avoid permanent disable
+            setTimeout(() => {
+                this.classList.remove('loading');
+            }, 1000);
         });
     });
 }

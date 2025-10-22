@@ -488,4 +488,181 @@ class Event {
         $result = $this->db->fetchOne($sql);
         return $result['count'] ?? 0;
     }
+    
+    /**
+     * Get user registrations
+     */
+    public function getUserRegistrations($userId) {
+        $sql = "SELECT e.*, 
+                GROUP_CONCAT(DISTINCT c.name) as category_names,
+                GROUP_CONCAT(DISTINCT c.color) as category_colors,
+                u.full_name as organizer_name, 
+                u.avatar_url as organizer_avatar,
+                er.status as registration_status,
+                er.attended_at
+                FROM events e
+                INNER JOIN event_registrations er ON e.id = er.event_id
+                LEFT JOIN event_categories ec ON e.id = ec.event_id
+                LEFT JOIN categories c ON ec.category_id = c.id
+                LEFT JOIN users u ON e.organizer_id = u.id
+                WHERE er.user_id = :user_id
+                AND er.status = 'registered'
+                GROUP BY e.id 
+                ORDER BY e.start_at DESC";
+        
+        return $this->db->fetchAll($sql, [':user_id' => $userId]);
+    }
+    
+    /**
+     * Get events by categories
+     */
+    public function getEventsByCategories($categoryIds, $limit = 10) {
+        if (empty($categoryIds)) {
+            return [];
+        }
+        
+        $placeholders = str_repeat('?,', count($categoryIds) - 1) . '?';
+        $sql = "SELECT DISTINCT e.*, 
+                GROUP_CONCAT(DISTINCT c.name) as category_names,
+                GROUP_CONCAT(DISTINCT c.color) as category_colors,
+                u.full_name as organizer_name, 
+                u.avatar_url as organizer_avatar,
+                (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id AND status = 'registered') as registration_count
+                FROM events e
+                INNER JOIN event_categories ec ON e.id = ec.event_id
+                LEFT JOIN categories c ON ec.category_id = c.id
+                LEFT JOIN users u ON e.organizer_id = u.id
+                WHERE ec.category_id IN ($placeholders)
+                AND e.status = 'approved'
+                AND e.event_status = 'upcoming'
+                AND e.start_at > NOW()
+                GROUP BY e.id
+                ORDER BY e.start_at ASC
+                LIMIT ?";
+        
+        $params = array_merge($categoryIds, [$limit]);
+        return $this->db->fetchAll($sql, $params);
+    }
+    
+    /**
+     * Get approved events with filters
+     */
+    public function getApprovedEvents($category = '', $search = '') {
+        $sql = "SELECT DISTINCT e.*, 
+                GROUP_CONCAT(DISTINCT c.name) as category_names,
+                GROUP_CONCAT(DISTINCT c.color) as category_colors,
+                u.full_name as organizer_name, 
+                u.avatar_url as organizer_avatar,
+                (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id AND status = 'registered') as registration_count
+                FROM events e
+                LEFT JOIN event_categories ec ON e.id = ec.event_id
+                LEFT JOIN categories c ON ec.category_id = c.id
+                LEFT JOIN users u ON e.organizer_id = u.id
+                WHERE e.status = 'approved'
+                AND e.event_status = 'upcoming'
+                AND e.start_at > NOW()";
+        
+        $params = [];
+        
+        if (!empty($category)) {
+            $sql .= " AND c.name = :category";
+            $params[':category'] = $category;
+        }
+        
+        if (!empty($search)) {
+            $sql .= " AND (e.title LIKE :search OR e.description LIKE :search)";
+            $params[':search'] = "%$search%";
+        }
+        
+        $sql .= " GROUP BY e.id ORDER BY e.start_at ASC";
+        
+        return $this->db->fetchAll($sql, $params);
+    }
+    
+    /**
+     * Get categories
+     */
+    public function getCategories() {
+        $sql = "SELECT * FROM categories ORDER BY name ASC";
+        return $this->db->fetchAll($sql);
+    }
+    
+    /**
+     * Get user participation history
+     */
+    public function getUserParticipationHistory($userId) {
+        $sql = "SELECT e.*, 
+                GROUP_CONCAT(DISTINCT c.name) as category_names,
+                u.full_name as organizer_name, 
+                er.status as participation_status,
+                er.attended_at
+                FROM events e
+                INNER JOIN event_registrations er ON e.id = er.event_id
+                LEFT JOIN event_categories ec ON e.id = ec.event_id
+                LEFT JOIN categories c ON ec.category_id = c.id
+                LEFT JOIN users u ON e.organizer_id = u.id
+                WHERE er.user_id = :user_id
+                AND er.status IN ('attended', 'no_show')
+                GROUP BY e.id 
+                ORDER BY e.start_at DESC";
+        
+        return $this->db->fetchAll($sql, [':user_id' => $userId]);
+    }
+    
+    /**
+     * Check if user is registered for event
+     */
+    public function isUserRegistered($eventId, $userId) {
+        $sql = "SELECT COUNT(*) as count FROM event_registrations 
+                WHERE event_id = :event_id AND user_id = :user_id AND status = 'registered'";
+        
+        $result = $this->db->fetchOne($sql, [
+            ':event_id' => $eventId,
+            ':user_id' => $userId
+        ]);
+        
+        return $result['count'] > 0;
+    }
+    
+    /**
+     * Register user for event
+     */
+    public function registerUser($eventId, $userId) {
+        $sql = "INSERT INTO event_registrations (event_id, user_id, status, registered_at) 
+                VALUES (:event_id, :user_id, 'registered', NOW())";
+        
+        return $this->db->execute($sql, [
+            ':event_id' => $eventId,
+            ':user_id' => $userId
+        ]);
+    }
+    
+    /**
+     * Unregister user from event
+     */
+    public function unregisterUser($eventId, $userId) {
+        $sql = "UPDATE event_registrations 
+                SET status = 'cancelled', cancelled_at = NOW() 
+                WHERE event_id = :event_id AND user_id = :user_id AND status = 'registered'";
+        
+        return $this->db->execute($sql, [
+            ':event_id' => $eventId,
+            ':user_id' => $userId
+        ]);
+    }
+    
+    /**
+     * Update participation status
+     */
+    public function updateParticipationStatus($eventId, $userId, $status) {
+        $sql = "UPDATE event_registrations 
+                SET status = :status, attended_at = NOW() 
+                WHERE event_id = :event_id AND user_id = :user_id";
+        
+        return $this->db->execute($sql, [
+            ':event_id' => $eventId,
+            ':user_id' => $userId,
+            ':status' => $status
+        ]);
+    }
 }

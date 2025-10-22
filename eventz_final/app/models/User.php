@@ -280,12 +280,20 @@ class User {
      * Get user count by role
      */
     public function getUserCountByRole($roleName) {
-        $sql = "SELECT COUNT(*) as count 
-                FROM users u 
-                INNER JOIN user_roles ur ON u.id = ur.user_id 
-                INNER JOIN roles r ON ur.role_id = r.id 
+        $sql = "SELECT COUNT(*) as count
+                FROM users u
+                INNER JOIN user_roles ur ON u.id = ur.user_id
+                INNER JOIN roles r ON ur.role_id = r.id
                 WHERE r.name = :role_name";
         $result = $this->db->fetchOne($sql, [':role_name' => $roleName]);
         return $result['count'] ?? 0;
+    }
+
+    /**
+     * Get user statistics
+     */
+    public function getUserStats($userId) {
+        $sql = "SELECT * FROM user_statistics WHERE id = :id";
+        return $this->db->fetchOne($sql, [':id' => $userId]);
     }
 }

@@ -30,15 +30,15 @@ require_once __DIR__ . '/../layouts/header.php';
             </div> -->
             <div class="stat-card">
                 <h3>Registered Events</h3>
-                <div class="stat-value"><?= $stats['total_registered'] ?></div>
+                <div class="stat-value"><?= $stats['participated_events'] ?? 0 ?></div>
             </div>
             <div class="stat-card">
                 <h3>Followers</h3>
-                <div class="stat-value"><?= $stats['followers'] ?></div>
+                <div class="stat-value"><?= $stats['followers_count'] ?? 0 ?></div>
             </div>
             <div class="stat-card">
                 <h3>Following</h3>
-                <div class="stat-value"><?= $stats['following'] ?></div>
+                <div class="stat-value"><?= $stats['following_count'] ?? 0 ?></div>
             </div>
         </div>
         

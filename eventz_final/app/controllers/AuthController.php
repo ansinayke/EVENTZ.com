@@ -225,7 +225,7 @@ class AuthController extends Controller {
             return $this->json([
                 'success' => true,
                 'message' => 'Registration successful! Please login.',
-                'redirect' => '/login'
+                'redirect' => '/eventz_final/login'
             ]);
         } else {
             $_SESSION['success'] = 'Registration successful! Please login.';
